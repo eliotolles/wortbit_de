@@ -1,0 +1,67 @@
+name: Build Release APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build Android Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout source
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Java 17 (required by modern Android Gradle Plugin)
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # 3. Flutter 3.24.x stable
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      # 4. Verify toolchain
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      # 5. Fetch dependencies
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # 6. Run analyzer (non-blocking – warnings OK, errors fail)
+      - name: Dart analyze
+        run: flutter analyze --no-fatal-infos
+        continue-on-error: false
+
+      # 7. Build release APK (no signing = debug-signed, installable via adb)
+      - name: Build release APK
+        run: flutter build apk --release --no-shrink
+
+      # 8. Rename artifact with build number and git SHA for traceability
+      - name: Rename APK
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/wortbit_de_release_${SHA}.apk
+
+      # 9. Upload to GitHub Actions Artifacts (downloadable for 30 days)
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wortbit-de-apk
+          path: build/app/outputs/flutter-apk/wortbit_de_release_*.apk
+          retention-days: 30
+          if-no-files-found: error
