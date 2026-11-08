@@ -214,6 +214,7 @@ class _FlashcardScreenState extends State<FlashcardScreen>
         .where((w) => _activeArticles.contains(w.article.toLowerCase()))
         .toList();
 
+    // Lọc các từ cần ôn tập (due) và các từ mới chưa học
     final due = filtered
         .where((w) => (_srs[w.id]?.nextReview ?? now).isBefore(now))
         .toList()
@@ -226,7 +227,10 @@ class _FlashcardScreenState extends State<FlashcardScreen>
 
     _queue = [...due, ...notDue];
     if (_queue.isEmpty) _queue = [...filtered]..shuffle(Random());
-    _queueIndex = 0;
+    
+    // Lấy vị trí học tiếp theo đã lưu từ session trước để không bị lặp từ đầu
+    final savedIndex = _prefs.getInt('last_queue_index') ?? 0;
+    _queueIndex = savedIndex % _queue.length;
   }
 
   WordModel get _current => _queue[_queueIndex % _queue.length];
@@ -259,10 +263,11 @@ class _FlashcardScreenState extends State<FlashcardScreen>
     await _slideController.forward();
     await _tts.stop();
     setState(() {
-      _queueIndex++;
+      _queueIndex = (_queueIndex + 1) % _queue.length;
       _meaningRevealed = false;
       _isSliding = false;
     });
+    await _prefs.setInt('last_queue_index', _queueIndex);
     _slideController.reset();
     _revealController.reset();
   }
