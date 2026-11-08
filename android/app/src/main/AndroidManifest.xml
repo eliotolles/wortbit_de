@@ -1,25 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- ══ Permissions ══════════════════════════════════════════════════════ -->
-    <!-- Keep CPU alive while service is running -->
+    <!-- Permissions cho Android 13/14+ -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Start service after reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Draw over lockscreen (overlay) – user must grant manually on MIUI/OxygenOS -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <!-- Required for startForegroundService() -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Android 14+ requires explicit foreground service type -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <!-- Show full-screen intent over lockscreen -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <!-- Post persistent notification (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Vibrate on card advance -->
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Internet (for future cloud sync) -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Dismiss keyguard without PIN (shows over but does NOT unlock) -->
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
 
     <application
@@ -29,7 +18,6 @@
         android:allowBackup="false"
         android:fullBackupContent="false">
 
-        <!-- ══ Main Activity ════════════════════════════════════════════════ -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -49,28 +37,24 @@
             </intent-filter>
         </activity>
 
-        <!-- ══ Lockscreen Foreground Service ════════════════════════════════ -->
         <service
             android:name=".LockScreenService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Displays vocabulary flashcards on the lockscreen when the screen turns on" />
+                android:value="Displays German flashcards on the lockscreen when the user turns on the screen." />
         </service>
 
-        <!-- ══ Boot Receiver ════════════════════════════════════════════════ -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
 
-        <!-- Flutter metadata -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

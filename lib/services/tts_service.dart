@@ -1,44 +1,42 @@
 // lib/services/tts_service.dart
-// Wrapper around flutter_tts for German pronunciation.
+// Native Android Text-to-Speech wrapper via platform channel (Zero 3rd party deps)
 
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter/services.dart';
 
 class TtsService {
-  final FlutterTts _tts = FlutterTts();
+  static const _channel = MethodChannel('com.example.wortbit_de/tts');
   bool _isInitialized = false;
 
-  /// Call once before using [speak].
   Future<void> init() async {
     if (_isInitialized) return;
-
-    await _tts.setLanguage('de-DE');
-    await _tts.setSpeechRate(0.45);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
-
-    _tts.setErrorHandler((dynamic error) {
-      // Silently swallow TTS errors; the button simply does nothing.
+    try {
+      await _channel.invokeMethod('init');
+      _isInitialized = true;
+    } catch (e) {
       // ignore: avoid_print
-      print('[TTS] error: $error');
-    });
-
-    _isInitialized = true;
+      print('[TTS] init error: $e');
+    }
   }
 
-  /// Pronounce [text] aloud in German.
   Future<void> speak(String text) async {
-    if (!_isInitialized) await init();
-    await _tts.stop();
-    await _tts.speak(text);
+    try {
+      await _channel.invokeMethod('speak', {'text': text});
+    } catch (e) {
+      // ignore: avoid_print
+      print('[TTS] speak error: $e');
+    }
   }
 
-  /// Stop any ongoing speech immediately.
   Future<void> stop() async {
-    await _tts.stop();
+    try {
+      await _channel.invokeMethod('stop');
+    } catch (e) {
+      // ignore: avoid_print
+      print('[TTS] stop error: $e');
+    }
   }
 
-  /// Release native resources. Call when the app is permanently dismissed.
   Future<void> dispose() async {
-    await _tts.stop();
+    await stop();
   }
 }
