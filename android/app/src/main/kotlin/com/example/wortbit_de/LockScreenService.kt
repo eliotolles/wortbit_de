@@ -13,40 +13,41 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
-/**
- * Foreground service that keeps the app alive in the background and
- * listens for ACTION_SCREEN_ON to bring up the flashcard on the lockscreen.
- */
 class LockScreenService : Service() {
 
     companion object {
-        const val CHANNEL_ID   = "wortbit_lockscreen_channel"
+        const val CHANNEL_ID = "wortbit_lockscreen_channel"
         const val NOTIFICATION_ID = 1001
-        const val ACTION_STOP  = "com.example.wortbit_de.STOP_SERVICE"
+        const val ACTION_STOP = "com.example.wortbit_de.STOP_SERVICE"
     }
 
-    // ── Receiver: fires every time the screen turns on ──────────────────────
-    private val screenOnReceiver = object : BroadcastReceiver() {
+    private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == Intent.ACTION_SCREEN_ON) {
-                showOnLockScreen(context)
+            when (intent.action) {
+                Intent.ACTION_SCREEN_ON -> {
+                    // Màn hình sáng lên -> Bật MainActivity đè lên Lockscreen
+                    showOnLockScreen(context)
+                }
+                Intent.ACTION_SCREEN_OFF -> {
+                    // Màn hình tắt -> Báo hiệu để sẵn sàng cho lần mở tiếp theo
+                }
             }
         }
     }
-
-    // ────────────────────────────────────────────────────────────────────────
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
 
-        // Register screen-on listener (cannot be declared in manifest for ACTION_SCREEN_ON)
-        val filter = IntentFilter(Intent.ACTION_SCREEN_ON)
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(screenOnReceiver, filter, RECEIVER_NOT_EXPORTED)
+            registerReceiver(screenReceiver, filter, RECEIVER_NOT_EXPORTED)
         } else {
-            registerReceiver(screenOnReceiver, filter)
+            registerReceiver(screenReceiver, filter)
         }
     }
 
@@ -55,30 +56,46 @@ class LockScreenService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        return START_STICKY   // Restart automatically if killed by system
+        return START_STICKY
     }
 
     override fun onDestroy() {
-        try { unregisterReceiver(screenOnReceiver) } catch (_: Exception) {}
+        try {
+            unregisterReceiver(screenReceiver)
+        } catch (_: Exception) {}
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // ── Bring MainActivity to front over the lockscreen ──────────────────────
+    // ── Kích hoạt MainActivity đè màn hình khoá ──
     private fun showOnLockScreen(context: Context) {
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK        or
-                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
                 Intent.FLAG_ACTIVITY_SINGLE_TOP
             )
             putExtra("from_lockscreen", true)
         }
-        startActivity(launchIntent)
+
+        // Dùng cả startActivity và FullScreen PendingIntent để Android 10-14 không bao giờ chặn
+        try {
+            context.startActivity(launchIntent)
+        } catch (e: Exception) {
+            // Fallback qua Fullscreen notification nếu hệ thống chặn background start
+            val pi = PendingIntent.getActivity(
+                context, 
+                0, 
+                launchIntent, 
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            try {
+                pi.send()
+            } catch (_: Exception) {}
+        }
     }
 
-    // ── Persistent foreground notification ───────────────────────────────────
     private fun buildNotification(): Notification {
         val stopIntent = Intent(this, LockScreenService::class.java).apply {
             action = ACTION_STOP
@@ -87,21 +104,25 @@ class LockScreenService : Service() {
             this, 0, stopIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val openIntent = packageManager.getLaunchIntentForPackage(packageName)
+
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
         val openPi = PendingIntent.getActivity(
             this, 1, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_edit)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Wortbit DE đang chạy")
-            .setContentText("Từ vựng sẽ hiện khi bạn mở màn hình 📖")
+            .setContentText("Từ vựng sẽ hiện mỗi khi bật màn hình 📖")
             .setOngoing(true)
             .setSilent(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setContentIntent(openPi)
-            .addAction(android.R.drawable.ic_delete, "Tắt", stopPi)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Tắt", stopPi)
             .build()
     }
 
@@ -109,16 +130,15 @@ class LockScreenService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Wortbit Lockscreen",
-                NotificationManager.IMPORTANCE_LOW
+                "Wortbit Lockscreen Service",
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Hiển thị từ vựng trên màn hình khoá"
+                description = "Hiển thị từ vựng tiếng Đức trên màn hình khoá"
                 setShowBadge(false)
+                setSound(null, null)
                 enableVibration(false)
-                enableLights(false)
             }
-            getSystemService(NotificationManager::class.java)
-                ?.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 }

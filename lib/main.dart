@@ -478,6 +478,13 @@ class _FlashcardScreenState extends State<FlashcardScreen>
             onTap: () =>
                 setState(() => _showSettings = !_showSettings),
           ),
+          const SizedBox(width: 6),
+          // Nút thoát ra màn hình chính (Unlock/Dismiss)
+          _IconBtn(
+            icon: Icons.close_rounded,
+            color: const Color(0xFF888888),
+            onTap: () => LockScreenService.dismiss(),
+          ),
         ],
       ),
     );

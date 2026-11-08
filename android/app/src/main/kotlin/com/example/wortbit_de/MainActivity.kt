@@ -25,16 +25,23 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
         tts = TextToSpeech(this, this)
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Đảm bảo luôn kích hoạt cờ hiển thị trên lockscreen mỗi khi Activity active
+        applyLockScreenFlags()
+    }
+
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             val result = tts?.setLanguage(Locale.GERMAN)
-            tts?.setSpeechRate(0.85f) // Natural pacing for German
+            tts?.setSpeechRate(0.85f)
             isTtsReady = result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED
         }
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         applyLockScreenFlags()
     }
 
@@ -52,12 +59,17 @@ class MainActivity : FlutterActivity(), TextToSpeech.OnInitListener {
                     stopService(android.content.Intent(this, LockScreenService::class.java))
                     result.success(null)
                 }
+                "dismiss" -> {
+                    // Đóng giao diện Lockscreen để người dùng vào màn hình chính điện thoại
+                    moveTaskToBack(true)
+                    result.success(null)
+                }
                 "isServiceRunning" -> result.success(true)
                 else -> result.notImplemented()
             }
         }
 
-        // Native Zero-dependency TTS
+        // Native TTS
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TTS_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "init" -> result.success(isTtsReady)
